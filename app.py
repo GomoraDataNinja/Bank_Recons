@@ -51,7 +51,7 @@ def get_org_password():
 ORG_PASSWORD = get_org_password()
 
 # =========================
-# Theme (Wells Fargo red accent, Batsirai style)
+# Theme (Wells Fargo red accent)
 # =========================
 THEME = {
     "bg": "#ffffff",
@@ -101,22 +101,29 @@ def apply_style():
             padding-top: 2.6rem !important;
             padding-bottom: 2.2rem !important;
         }}
-        html, body, .stApp, .stMarkdown, .stText, p, span, div, label {{
-            font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial, "Noto Sans", "Helvetica Neue", sans-serif !important;
+        /* File uploader styling */
+        div[data-testid="stFileUploader"] {{
+            background: var(--panel) !important;
+            border: 1px dashed var(--border2) !important;
+            border-radius: 16px !important;
+            padding: 10px !important;
+            transition: border 0.2s ease;
+        }}
+        div[data-testid="stFileUploader"]:hover {{
+            border: 1px dashed var(--accent) !important;
+        }}
+        div[data-testid="stFileUploader"] label {{
             color: var(--text) !important;
+            font-weight: 800 !important;
+            font-size: 14px !important;
         }}
-        section[data-testid="stSidebar"] {{
-            background: #ffffff !important;
-            border-right: 1px solid var(--border) !important;
+        div[data-testid="stFileUploader"] small {{
+            color: var(--muted) !important;
+            font-size: 12px !important;
         }}
+        /* Cards and containers */
         .card {{
             background: #ffffff !important;
-            border: 1px solid var(--border) !important;
-            border-radius: 18px !important;
-            padding: 18px 18px !important;
-        }}
-        .card-soft {{
-            background: var(--panel2) !important;
             border: 1px solid var(--border) !important;
             border-radius: 18px !important;
             padding: 18px 18px !important;
@@ -138,7 +145,6 @@ def apply_style():
             margin-top: 8px !important;
             color: var(--muted) !important;
             font-size: 14px !important;
-            line-height: 1.6 !important;
         }}
         .chip {{
             display: inline-flex !important;
@@ -175,7 +181,9 @@ def apply_style():
             font-size: 26px !important;
             font-weight: 850 !important;
             margin-top: 6px !important;
+            color: var(--accent) !important;
         }}
+        /* Buttons */
         div.stButton > button {{
             background: var(--accent) !important;
             border: 1px solid var(--accent) !important;
@@ -186,11 +194,10 @@ def apply_style():
         }}
         div.stButton > button:hover {{
             background: var(--accent2) !important;
-            border: 1px solid var(--accent2) !important;
+            border-color: var(--accent2) !important;
         }}
         div[data-baseweb="base-input"] > div,
-        div[data-baseweb="input"] > div,
-        div[data-baseweb="select"] > div {{
+        div[data-baseweb="input"] > div {{
             background: #ffffff !important;
             border: 1px solid var(--border2) !important;
             border-radius: 14px !important;
@@ -203,11 +210,26 @@ def apply_style():
         }}
         a, a:visited {{
             color: var(--accent) !important;
-            text-decoration: none !important;
             font-weight: 750 !important;
         }}
-        a:hover {{
-            text-decoration: underline !important;
+        .topbar {{
+            background: var(--accent) !important;
+            color: white;
+            padding: 16px 18px;
+            border-radius: 14px;
+            margin-bottom: 16px;
+            position: relative;
+        }}
+        .brand-center {{
+            text-align: center;
+            font-size: 30px;
+            font-weight: 900;
+        }}
+        .sub-center {{
+            text-align: center;
+            font-size: 12px;
+            opacity: 0.98;
+            margin-top: 2px;
         }}
         </style>
         """,
@@ -239,8 +261,6 @@ if "session_id" not in st.session_state:
     st.session_state.session_id = hashlib.sha256(str(time.time()).encode()).hexdigest()[:16]
 if "last_activity" not in st.session_state:
     st.session_state.last_activity = datetime.now()
-if "topic_results" not in st.session_state:
-    st.session_state.topic_results = None
 
 def login_screen():
     st.markdown('<div style="height: 1.8rem;"></div>', unsafe_allow_html=True)
@@ -304,7 +324,7 @@ st.markdown(
 st.markdown("")
 
 # =========================
-# Helper functions (unchanged from original)
+# Helper functions (reconciliation logic)
 # =========================
 def to_str(x):
     if pd.isna(x):
@@ -753,7 +773,6 @@ def export_to_excel(working_paper_df, recon_statement, bank_df, ledger_df, match
         recon_df = pd.DataFrame(recon_data)
         recon_df.to_excel(writer, sheet_name='RECON_STATEMENT', index=False, header=False)
 
-        # Additional sheets (Matched detail, unmatched, summary) – same as original
         if match_results['matches']:
             matched_detail = []
             matched_detail.append(['Matched Transactions - Detailed View', '', '', '', ''])
@@ -827,12 +846,25 @@ col1, col2 = st.columns(2)
 with col1:
     st.markdown('<div class="card">', unsafe_allow_html=True)
     st.subheader("🏦 Bank Statement")
-    bank_file = st.file_uploader("Upload Bank Statement", type=["xlsx", "xls"], key="bank")
+    bank_file = st.file_uploader(
+        "Bank Statement (Excel file)",
+        type=["xlsx", "xls"],
+        help="Upload your bank statement Excel file. Required columns: Date, Credit, Debit, Description (or similar).",
+        key="bank"
+    )
+    st.caption("Accepts .xlsx or .xls, max 200MB per file")
     st.markdown('</div>', unsafe_allow_html=True)
+
 with col2:
     st.markdown('<div class="card">', unsafe_allow_html=True)
     st.subheader("📒 Cashbook / Ledger")
-    ledger_file = st.file_uploader("Upload Yellowcob Ledger", type=["xlsx", "xls"], key="ledger")
+    ledger_file = st.file_uploader(
+        "Ledger / Cashbook (Excel file)",
+        type=["xlsx", "xls"],
+        help="Upload your Yellowcob ledger Excel file. Required columns: Date, Amount, Description (or similar).",
+        key="ledger"
+    )
+    st.caption("Accepts .xlsx or .xls, max 200MB per file")
     st.markdown('</div>', unsafe_allow_html=True)
 
 st.markdown('<div class="card">', unsafe_allow_html=True)
@@ -863,7 +895,6 @@ if run_recon:
         output_file = export_to_excel(working_paper, recon_statement, bank_df, ledger_df, match_results)
         st.success(f"✅ Reconciliation complete! {len(match_results['matches'])} matched.")
         
-        # Preview working paper
         st.markdown("---")
         st.subheader("📋 Working Paper Preview")
         wp_preview = working_paper[['SECTION','LEDGER_DATE','LEDGER_DESC','LEDGER_REF','LEDGER_AMOUNT','MATCH_STATUS','BANK_AMOUNT','BANK_DATE','BANK_REF','BANK_DESC']].head(30).copy()
@@ -874,10 +905,13 @@ if run_recon:
         st.dataframe(wp_preview, use_container_width=True)
         
         with open(output_file, 'rb') as f:
-            st.download_button("📥 Download Excel Report", data=f,
-                               file_name=f"bank_reconciliation_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx",
-                               mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                               use_container_width=True)
+            st.download_button(
+                "📥 Download Excel Report",
+                data=f,
+                file_name=f"bank_reconciliation_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                use_container_width=True,
+            )
     except Exception as e:
         st.error(f"Error: {e}")
         import traceback
